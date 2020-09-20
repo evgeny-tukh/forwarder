@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <string>
 #include "connection.h"
+#include "serial.h"
 
 struct Cfg {
     Connection::Type connType;
@@ -102,6 +103,7 @@ void parseArgs (int argCount, char *args [], Cfg& cfg) {
                 char *colon = strchr (arg + 3, ':');
 
                 if (colon) {
+                    cfg.remoteHost.clear ();
                     cfg.remoteHost.append (arg + 3, colon);
                     
                     cfg.remotePort = atoi (colon + 1);
@@ -145,12 +147,76 @@ void showSettings (Cfg& cfg) {
 
 int main (int argCount, char *args []) {
     Cfg cfg;
+    Connection *connection;
+    Config *connCfg;
 
     printf ("Forwader tool v1.0\nCopyright (c) by Evgeny Tukh, 2020\n");
 
     parseArgs (argCount, args, cfg);
 
     showSettings (cfg);
+
+    printf ("Opening connection...");
+
+    switch (cfg.connType) {
+        case Connection::Type::SERIAL:
+            connection = new SerialConnection (cfg.port);
+            connCfg = new SerialCfg (cfg.baud);
+
+            break;
+
+        default:
+            printf ("Unsupported connection type.\n");
+            exit (0);
+    }
+
+    connection->setParams (connCfg);
+
+    WSAData data;
+
+    WSAStartup (0x0202, & data);
+
+    auto transmitter = createTransmitter (cfg.remoteHost.c_str (), cfg.remotePort);
+
+    printf ("Connecting to remote host...");
+
+    if (transmitter->connect ()) {
+        printf ("ok.\n");
+    } else {
+        printf ("failed.\n");
+        exit (0);
+    }
+
+    if (connection->open ()) {
+        std::string sentence;
+        int count = 0;
+        
+        printf ("ok\n");
+
+        while (true) {
+            uint8_t byte;
+
+            if (connection->read (sizeof (byte), & byte) > 0) {
+                sentence.append (1, (char) byte);
+
+                if (byte == 13) {
+                    transmitter->send (& sentence.front (), sentence.length ());
+                    printf ("Sentences forwarded %d\r", count ++);
+
+                    sentence.clear ();
+                }
+            }
+        }
+
+        printf ("Closing connection.\n");
+
+        connection->close ();
+    } else {
+        printf ("failed, error %d.\n", getErrorCode ());
+    }
+
+    delete connection;
+    delete connCfg;
 
     exit (0);
 }

@@ -17,6 +17,7 @@
           "connection.cpp",
           "serial.cpp",
           "platform_win.cpp",
+          "transmitter.cpp",
           "wsock32.lib",
         ],
         "problemMatcher": ["$msCompile"],

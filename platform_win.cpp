@@ -60,3 +60,37 @@ uint32_t readComPort (Connection::Handle handle, uint8_t *buffer, uint32_t size)
 
     return ReadFile ((HANDLE) handle, buffer, size, & bytesRead, 0) ? (uint32_t) bytesRead : 0;
 }
+
+uint32_t getErrorCode () {
+    return GetLastError ();
+}
+
+WinTransmitter::WinTransmitter (const char *remoteHost, uint16_t remotePort): Transmitter (remoteHost, remotePort) {
+    handle = INVALID_SOCKET;
+}
+
+bool WinTransmitter::connect () {
+    SOCKADDR_IN remoteHost;
+
+    handle = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    
+    remoteHost.sin_addr.S_un.S_addr = inet_addr (host);
+    remoteHost.sin_family = AF_INET;
+    remoteHost.sin_port = ntohs (port);
+
+    return ::connect (handle, (SOCKADDR *) & remoteHost, sizeof (remoteHost)) == S_OK;
+}
+
+void WinTransmitter::disconnect () {
+    closesocket (handle);
+
+    handle = INVALID_SOCKET;
+}
+
+int WinTransmitter::send (char *buffer, int size) {
+    return ::send (handle, buffer, size, 0);
+}
+
+Transmitter *createTransmitter (const char *remoteHost, uint16_t remotePort) {
+    return new WinTransmitter (remoteHost, remotePort);
+}
